@@ -8,7 +8,7 @@ const ServicePrice = require("../model/price.model")
 
 
 exports.addCategory = (req, res, next) => {
-    const name = req.body.category_name;
+    const name = req.body.name;
     Category.create({
             category_name: name
         })
@@ -37,7 +37,7 @@ exports.getAllCategories = (req, res, next) => {
 }
 
 exports.updateCategory = (req, res, next) => {
-    const updatedName = req.body.category_name;
+    const updatedName = req.body.name;
     const id = req.params.categoryId
     Category.findByPk(id)
         .then(category => {
@@ -130,20 +130,37 @@ exports.addService = (req, res, next) => {
         });
 }
 
-exports.getAllServices = (req, res, next) => {
-    const cat_id = req.params.categoryId
-    Service.findAll({
+exports.getAllServices = async (req, res, next) => {
+    try {
+        const cat_id = req.params.categoryId;
+        const services = await Service.findAll({
             where: {
                 category_id: cat_id
             }
-        })
-        .then(services => {
-            res.status(200).json({
-                Services: services
+        });
+
+        const servicePromises = services.map(async (service) => {
+            const price = await ServicePrice.findAll({
+                where: {
+                    service_id: service.id
+                }
             });
-        })
-        .catch(err => console.log(err));
-}
+            service.dataValues.prices = price.map(p => p.dataValues);
+            return service;
+        });
+
+        const servicesWithPrices = await Promise.all(servicePromises);
+
+        res.status(200).json({
+            Services: servicesWithPrices
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            error: 'Internal server error'
+        });
+    }
+};
 
 exports.deleteService = (req, res, next) => {
     const cat_id = req.params.categoryId;
